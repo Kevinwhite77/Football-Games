@@ -52,6 +52,58 @@ const scoresEl = $("parquesScores");
 let P = null;
 const cellEls = {}; // "f_c" -> div
 
+// ---------- ranking global (Convex, opcional) ----------
+function getParquesConvexUrl() {
+    try {
+        return globalThis.__CONVEX_URL__
+            || (typeof import.meta !== "undefined" && import.meta.env?.VITE_CONVEX_URL)
+            || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+let parquesConvexCache = undefined;
+function loadParquesConvex() {
+    if (parquesConvexCache !== undefined) return parquesConvexCache;
+    const url = getParquesConvexUrl();
+    if (!url) {
+        parquesConvexCache = Promise.resolve(null);
+        return parquesConvexCache;
+    }
+    parquesConvexCache = Promise.all([import("convex/browser"), import("convex/server")])
+        .then(([{ ConvexHttpClient }, { anyApi }]) => ({
+            client: new ConvexHttpClient(url),
+            api: anyApi,
+        }))
+        .catch((e) => {
+            console.warn("Ranking Parqués no disponible:", e);
+            return null;
+        });
+    return parquesConvexCache;
+}
+
+async function saveParquesWin({ team, turns, timeSec, mode, human }) {
+    try {
+        const convex = await loadParquesConvex();
+        if (!convex) return;
+        const stored = (localStorage.getItem("jugador") || "").trim();
+        const player = human
+            ? (stored || team).slice(0, 20)
+            : `CPU ${team}`.slice(0, 20);
+        await convex.client.mutation(convex.api.scores.saveScore, {
+            player,
+            game: "parques",
+            timeSec,
+            team,
+            turns,
+            mode,
+        });
+    } catch (e) {
+        console.warn("No se pudo guardar Parqués en el ranking:", e);
+    }
+}
+
 // ---------- estado ----------
 function activeColors() {
     const m = modeSel ? modeSel.value : "cpu4";
@@ -72,6 +124,8 @@ function parquesNewGame() {
         dice: null,
         canRoll: true,
         over: false,
+        rolls: 0,
+        startedAt: Date.now(),
     };
     buildBoard();
     renderParques();
@@ -135,6 +189,7 @@ function rollDice() {
 function doRoll() {
     if (!P || P.over || !P.canRoll) return;
     P.canRoll = false;
+    P.rolls = (P.rolls || 0) + 1;
     const d = 1 + Math.floor(Math.random() * 6);
     let ticks = 0;
     const anim = setInterval(() => {
@@ -232,6 +287,13 @@ function movePiece(turnIdx, idx) {
         renderParques();
         setMsg(`🏆 ¡${c.emoji} ${c.team} ganó el Parqués!`);
         beep(880);
+        saveParquesWin({
+            team: c.team,
+            turns: P.rolls || 0,
+            timeSec: Math.floor((Date.now() - (P.startedAt || Date.now())) / 1000),
+            mode: modeSel ? modeSel.value : "cpu4",
+            human: !!pl.human,
+        });
         setTimeout(() => alert(`🏆 ¡${c.team} ganó el Parqués! 🎲`), 350);
         return;
     }
