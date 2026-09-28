@@ -45,7 +45,8 @@
                     <p>Encuentra todos los escudos iguales.</p>
                 </div>
                 <div class="game-card" id="parquesGame">
-                    <div class="game-emoji">🎲</div>
+                    <img src="img/parques-champions.jpg" alt="Parqués Champions" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                    <div class="game-emoji" style="display:none">🎲</div>
                     <h3>Parqués</h3>
                     <p>Saca tus 4 fichas de la cárcel y llega primero a la meta.</p>
                 </div>
@@ -77,37 +78,44 @@
     <section id="parquesScreen" class="hidden">
         <div class="parques-container">
             <h1>🎲 Parqués</h1>
+            <!-- Portada estilo Champions: se muestra antes de jugar -->
+            <div id="parquesIntro">
+                <div class="ch-board">
+                    <div class="ch-track" id="chTrack"></div>
+                    <div class="ch-center">
+                        <div class="ch-ball">⭐</div>
+                        <h2>CHAMPIONS<br>PARQUÉS</h2>
+                        <p class="ch-sub">El parqués clásico vestido de Champions: recorre el tablero con tu color y corona tus 4 fichas en el centro.</p>
+                        <div class="ch-pieces">🔴 🟢 🟡 🔵 &nbsp;🎲🎲</div>
+                        <label class="ch-label" for="parquesMode">Modo de juego</label>
+                        <select id="parquesMode">
+                            <option value="cpu4">🧍 Tú (Real Madrid) vs 🤖🤖🤖 3 CPU</option>
+                            <option value="cpu">🧍 Tú (Real Madrid) vs 🤖 CPU (Barcelona)</option>
+                            <option value="2p">🧍🧍 2 jugadores: Real Madrid vs Barcelona</option>
+                        </select>
+                        <button id="parquesPlay">▶ JUGAR</button>
+                        <button id="backMenuParquesIntro" class="ch-back">← Volver al menú</button>
+                    </div>
+                </div>
+            </div>
+            <div id="parquesGameWrap" class="hidden">
             <div class="info">
                 <span id="parquesTurn">🔴 Turno: Rojo</span>
                 <span>🎲 Dado: <span id="parquesDice">-</span></span>
-                <span>🔴 <span id="parquesScoreR">0/4</span> &nbsp;vs&nbsp; 🔵 <span id="parquesScoreB">0/4</span></span>
+                <span>🏁 Mete tus 4 fichas al centro</span>
             </div>
             <div class="parques-controls">
-                <select id="parquesMode">
-                    <option value="cpu">🧍 Tú (rojo) vs 🤖 CPU (azul)</option>
-                    <option value="2p">🧍🧍 2 jugadores (local)</option>
-                </select>
                 <button id="parquesRoll">🎲 Lanzar dado</button>
             </div>
             <p id="parquesMsg" class="parques-msg">Pulsa "Lanzar dado" para empezar. Sales de la cárcel con 6.</p>
-            <div class="parques-layout">
-                <div class="parques-home" id="parquesHomeR">
-                    <h3>🔴 Cárcel roja</h3>
-                    <div class="parques-jail" id="parquesJailR"></div>
-                    <div class="parques-goal" id="parquesGoalR">🏁 Meta: <span>0/4</span></div>
-                </div>
-                <div id="parquesTrack"></div>
-                <div class="parques-home" id="parquesHomeB">
-                    <h3>🔵 Cárcel azul</h3>
-                    <div class="parques-jail" id="parquesJailB"></div>
-                    <div class="parques-goal" id="parquesGoalB">🏁 Meta: <span>0/4</span></div>
-                </div>
-            </div>
-            <p class="parques-rules">📜 Reglas simples: sales con 6 · si sacas 6 repites turno · cae sobre un rival (casilla blanca) y lo devuelves a la cárcel · las ⭐ son seguros · necesitas número exacto para entrar a la meta.</p>
+            <div class="parques-scores" id="parquesScores"></div>
+            <div id="parquesBoardWrap"><div id="parquesBoard"></div></div>
+            <p class="parques-rules">📜 Tablero clásico: sales de la cárcel con 6 · con 6 repites turno · las ⭐ y las casillas de color son seguros · si caes sobre un rival lo devuelves a su cárcel · comer o coronar da otro turno · necesitas el número exacto para entrar al centro.</p>
             <div class="btn-row">
                 <button id="restartParques">🔄 Reiniciar</button>
                 <button id="backMenuParques">← Volver al menú</button>
             </div>
+            </div><!-- /parquesGameWrap -->
         </div>
     </section>
 

@@ -1,332 +1,466 @@
 // ================================
-// PARQUÉS SIMPLE (2 jugadores: Rojo vs Azul)
-// Pista circular de 32 casillas + 4 de recta final por jugador.
+// PARQUÉS CLÁSICO (tablero 15x15, 4 colores)
+// Recorrido de 52 casillas + 6 pasos de pasillo hasta el centro.
+// pos: -1 = cárcel, 0..50 = pista, 51..55 = pasillo propio, 56 = centro (meta)
 // ================================
 
-const TRACK_LEN = 32;
-const FINAL_STEPS = 4;               // casillas de recta final
-const GOAL_POS = TRACK_LEN + FINAL_STEPS; // 36 = meta (progreso total)
-const SAFE = new Set([0, 8, 16, 24]);     // seguros (relativos a la pista)
-const START = [0, 16];               // salida en la pista: rojo=0, azul=16
+const COLORS = [
+    { name: "Rojo", team: "Real Madrid", img: "img/escudos/real-madrid.png", emoji: "🔴", css: "ld-r", start: 0 },
+    { name: "Verde", team: "Bayern", img: "img/escudos/bayern.png", emoji: "🟢", css: "ld-g", start: 13 },
+    { name: "Amarillo", team: "Liverpool", img: "img/escudos/liverpool.png", emoji: "🟡", css: "ld-y", start: 26 },
+    { name: "Azul", team: "Barcelona", img: "img/escudos/barcelona.png", emoji: "🔵", css: "ld-b", start: 39 },
+];
 
-const parquesGameCard = document.getElementById("parquesGame");
-const parquesScreen = document.getElementById("parquesScreen");
-const gameMenuSection = document.getElementById("gameMenu");
-const trackEl = document.getElementById("parquesTrack");
-const diceEl = document.getElementById("parquesDice");
-const turnEl = document.getElementById("parquesTurn");
-const msgEl = document.getElementById("parquesMsg");
-const rollBtn = document.getElementById("parquesRoll");
-const modeSel = document.getElementById("parquesMode");
-const jailR = document.getElementById("parquesJailR");
-const jailB = document.getElementById("parquesJailB");
-const goalR = document.querySelector("#parquesGoalR span");
-const goalB = document.querySelector("#parquesGoalB span");
-const scoreR = document.getElementById("parquesScoreR");
-const scoreB = document.getElementById("parquesScoreB");
+// Recorrido principal de 52 casillas (fila, columna en cuadrícula 15x15)
+const PATH = [
+    [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
+    [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 7], [0, 8],
+    [1, 8], [2, 8], [3, 8], [4, 8], [5, 8],
+    [6, 9], [6, 10], [6, 11], [6, 12], [6, 13], [6, 14], [7, 14], [8, 14],
+    [8, 13], [8, 12], [8, 11], [8, 10], [8, 9],
+    [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8], [14, 7], [14, 6],
+    [13, 6], [12, 6], [11, 6], [10, 6], [9, 6],
+    [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0], [7, 0], [6, 0],
+];
 
-let P = null; // estado
+// Pasillos de cada color hacia el centro (5 casillas + centro)
+const HOMES = [
+    [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],     // rojo (entra desde el oeste)
+    [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],     // verde (entra desde el norte)
+    [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]], // amarillo (entra desde el este)
+    [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]], // azul (entra desde el sur)
+];
+
+const GOAL = 56;
+const SAFE = new Set([0, 8, 13, 21, 26, 34, 39, 47]); // salidas + estrellas
+const BASE_AREA = [ // [filaIni, colIni] de cada cárcel 6x6
+    [0, 0], [0, 9], [9, 9], [9, 0],
+];
+
+const $ = (id) => document.getElementById(id);
+const parquesGameCard = $("parquesGame");
+const parquesScreen = $("parquesScreen");
+const gameMenuSection = $("gameMenu");
+const boardEl = $("parquesBoard");
+const diceEl = $("parquesDice");
+const turnEl = $("parquesTurn");
+const msgEl = $("parquesMsg");
+const rollBtn = $("parquesRoll");
+const modeSel = $("parquesMode");
+const scoresEl = $("parquesScores");
+
+let P = null;
+const cellEls = {}; // "f_c" -> div
+
+// ---------- estado ----------
+function activeColors() {
+    const m = modeSel ? modeSel.value : "cpu4";
+    if (m === "cpu4") return [0, 1, 2, 3];
+    return [0, 3]; // rojo vs azul
+}
+function isHuman(pi) {
+    const m = modeSel ? modeSel.value : "cpu4";
+    if (m === "2p") return true;
+    return pi === 0;
+}
 
 function parquesNewGame() {
+    const act = activeColors();
     P = {
-        pieces: [[-1, -1, -1, -1], [-1, -1, -1, -1]], // -1 cárcel, 0..35 en juego, 36 meta
-        turn: 0,
+        players: act.map((ci) => ({ ci, pieces: [-1, -1, -1, -1], human: isHuman(ci) })),
+        turn: 0, // índice dentro de players
         dice: null,
         canRoll: true,
         over: false,
     };
+    buildBoard();
     renderParques();
-    setMsg("Turno del 🔴 rojo. ¡Lanza el dado!");
+    const me = cur();
+    setMsg(`Turno de ${label(me)}. Sal de la cárcel con un 6. ¡Lanza el dado!`);
+    maybeCpuRoll();
 }
 
-function boardIndex(player, pos) {
-    if (pos < 0 || pos >= TRACK_LEN) return null; // cárcel, recta final o meta
-    return (START[player] + pos) % TRACK_LEN;
-}
-
-function validMoves(player, dice) {
-    const moves = [];
-    P.pieces[player].forEach((pos, i) => {
-        if (pos === GOAL_POS) return; // ya en meta
-        if (pos === -1) {
-            if (dice === 6) moves.push(i); // salir de la cárcel
-        } else if (pos + dice <= GOAL_POS) {
-            moves.push(i);
-        }
-    });
-    return moves;
-}
-
+function cur() { return P.players[P.turn]; }
+function label(pl) { const c = COLORS[pl.ci]; return `${c.emoji} ${c.team}`; }
 function setMsg(t) { if (msgEl) msgEl.textContent = t; }
-function playerName(p) { return p === 0 ? "🔴 Rojo" : "🔵 Azul"; }
+function key(r, c) { return r + "_" + c; }
 
+// Escudo del equipo (con insignia temporal si falta el archivo, p. ej. Milan)
+function crestEl(ci) {
+    const c = COLORS[ci];
+    const s = document.createElement("span");
+    s.className = "ld-crest";
+    const img = document.createElement("img");
+    img.src = c.img;
+    img.alt = c.team;
+    img.draggable = false;
+    img.addEventListener("error", () => {
+        s.innerHTML = "";
+        const fb = document.createElement("span");
+        fb.className = "ld-crest-fb";
+        fb.textContent = c.team.slice(0, 3).toUpperCase();
+        fb.title = c.team;
+        s.appendChild(fb);
+    });
+    s.appendChild(img);
+    return s;
+}
+
+function pathIdxOf(ci, pos) { return (COLORS[ci].start + pos) % 52; }
+
+function cellOf(ci, pos) {
+    if (pos < 0) return null; // cárcel
+    if (pos <= 50) { const [r, c] = PATH[pathIdxOf(ci, pos)]; return { r, c, path: pathIdxOf(ci, pos) }; }
+    if (pos <= 55) { const [r, c] = HOMES[ci][pos - 51]; return { r, c, path: null }; }
+    return { center: true };
+}
+
+function validMoves(pl, dice) {
+    const out = [];
+    pl.pieces.forEach((pos, i) => {
+        if (pos === GOAL) return;
+        if (pos === -1) { if (dice === 6) out.push(i); }
+        else if (pos + dice <= GOAL) out.push(i);
+    });
+    return out;
+}
+
+// ---------- dados y turnos ----------
 function rollDice() {
     if (!P || P.over || !P.canRoll) return;
-    const d = 1 + Math.floor(Math.random() * 6);
-    P.dice = d;
+    if (!cur().human) return; // la CPU tira sola
+    doRoll();
+}
+
+function doRoll() {
+    if (!P || P.over || !P.canRoll) return;
     P.canRoll = false;
-    if (diceEl) { diceEl.textContent = "🎲..."; }
-    // pequeña animación del dado
+    const d = 1 + Math.floor(Math.random() * 6);
     let ticks = 0;
     const anim = setInterval(() => {
         if (diceEl) diceEl.textContent = 1 + Math.floor(Math.random() * 6);
         if (++ticks >= 6) {
             clearInterval(anim);
+            P.dice = d;
             if (diceEl) diceEl.textContent = d;
-            afterRoll(d);
+            beep(300 + d * 60);
+            afterRoll();
         }
     }, 70);
-    try { beepLike(300 + d * 60); } catch (e) { /* sin sonido */ }
 }
 
-function beepLike(freq) {
-    // reutiliza el sistema de sonido si existe (script.js expone sndFlip globalmente? no, así que mini-beep propio)
+function afterRoll() {
+    const me = cur();
+    const moves = validMoves(me, P.dice);
+    renderParques();
+    if (moves.length === 0) {
+        setMsg(`${label(me)} sacó ${P.dice} sin movimientos posibles. Pierde el turno.`);
+        setTimeout(nextTurn, 1200);
+        return;
+    }
+    if (me.human) {
+        setMsg(`${label(me)} sacó ${P.dice}. Toca una ficha brillante para moverla.`);
+    } else {
+        setMsg(`${label(me)} sacó ${P.dice}. Pensando...`);
+        setTimeout(() => cpuMove(), 850);
+    }
+}
+
+function cpuMove() {
+    if (!P || P.over || P.dice == null) return;
+    const me = cur();
+    if (me.human) return;
+    const d = P.dice;
+    const moves = validMoves(me, d);
+    if (moves.length === 0) { nextTurn(); return; }
+    let best = moves[0], bestScore = -1e9;
+    for (const i of moves) {
+        const pos = me.pieces[i];
+        const dest = pos === -1 ? 0 : pos + d;
+        let s = dest;
+        if (dest === GOAL) s += 200;
+        if (pos === -1) s += 90;
+        if (dest <= 50) {
+            const pi = pathIdxOf(me.ci, dest);
+            if (!SAFE.has(pi)) {
+                let victims = 0;
+                for (const o of P.players) {
+                    if (o === me) continue;
+                    victims += o.pieces.filter((rp) => rp >= 0 && rp <= 50 && pathIdxOf(o.ci, rp) === pi).length;
+                }
+                s += victims * 120;
+            } else s += 15; // prefiere seguros
+        } else s += 40; // prefiere pasillo
+        if (s > bestScore) { bestScore = s; best = i; }
+    }
+    movePiece(P.turn, best);
+}
+
+function movePiece(turnIdx, idx) {
+    const pl = P.players[turnIdx];
+    const d = P.dice;
+    if (d == null || P.over) return;
+    if (!validMoves(pl, d).includes(idx)) return;
+
+    let pos = pl.pieces[idx];
+    pos = pos === -1 ? 0 : pos + d;
+    pl.pieces[idx] = pos;
+
+    const c = COLORS[pl.ci];
+    let msg = `${c.emoji} ${c.team} movió su ficha ${idx + 1} (dado ${d}).`;
+    let captured = false;
+
+    if (pos <= 50) {
+        const pi = pathIdxOf(pl.ci, pos);
+        if (!SAFE.has(pi)) {
+            let eaten = 0;
+            for (const o of P.players) {
+                if (o === pl) continue;
+                o.pieces = o.pieces.map((rp) => {
+                    if (rp >= 0 && rp <= 50 && pathIdxOf(o.ci, rp) === pi) { eaten++; return -1; }
+                    return rp;
+                });
+            }
+            if (eaten > 0) { captured = true; msg += ` 😋 ¡Capturó ${eaten} ficha(s)!`; }
+        }
+    }
+    const crowned = pos === GOAL;
+    if (crowned) msg += " 🏁 ¡Ficha en el centro!";
+
+    if (pl.pieces.every((x) => x === GOAL)) {
+        P.over = true; P.dice = null; P.canRoll = false;
+        renderParques();
+        setMsg(`🏆 ¡${c.emoji} ${c.team} ganó el Parqués!`);
+        beep(880);
+        setTimeout(() => alert(`🏆 ¡${c.team} ganó el Parqués! 🎲`), 350);
+        return;
+    }
+
+    const extra = d === 6 || captured || crowned;
+    P.dice = null;
+    P.canRoll = true;
+    renderParques();
+    if (extra) {
+        setMsg(msg + " Tiene otro turno.");
+        maybeCpuRoll(900);
+    } else {
+        P.turn = (P.turn + 1) % P.players.length;
+        setMsg(msg + ` Turno de ${label(cur())}.`);
+        renderParques();
+        maybeCpuRoll(900);
+    }
+}
+
+function nextTurn() {
+    if (!P || P.over) return;
+    P.turn = (P.turn + 1) % P.players.length;
+    P.dice = null;
+    P.canRoll = true;
+    renderParques();
+    setMsg(`Turno de ${label(cur())}. ¡Lanza el dado!`);
+    maybeCpuRoll(900);
+}
+
+function maybeCpuRoll(delay = 0) {
+    if (!P || P.over || !P.canRoll) return;
+    if (cur().human) return;
+    setTimeout(() => { if (P && !P.over && P.canRoll && !cur().human) doRoll(); }, delay || 800);
+}
+
+function beep(freq) {
     try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
         window.__pqCtx = window.__pqCtx || new Ctx();
         const ctx = window.__pqCtx;
         const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = "square"; o.frequency.value = freq; g.gain.value = 0.08;
+        o.type = "square"; o.frequency.value = freq; g.gain.value = 0.06;
         o.connect(g); g.connect(ctx.destination);
         o.start(); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
         o.stop(ctx.currentTime + 0.12);
-    } catch (e) { /* noop */ }
+    } catch (e) { /* sin audio */ }
 }
 
-function afterRoll(d) {
-    const me = P.turn;
-    const moves = validMoves(me, d);
-    renderParques();
-    if (moves.length === 0) {
-        setMsg(`${playerName(me)} sacó ${d} y no tiene movimientos. Turno perdido.`);
-        setTimeout(nextTurn, 1100);
-        return;
-    }
-    if (isCpuTurn()) {
-        setMsg(`🤖 Azul sacó ${d}. Pensando...`);
-        setTimeout(() => cpuMove(d), 800);
-    } else {
-        const jailOpt = moves.some((i) => P.pieces[me][i] === -1);
-        setMsg(`${playerName(me)} sacó ${d}. ${jailOpt ? "Puedes salir de la cárcel con 6. " : ""}Toca una ficha iluminada para moverla.`);
-    }
-    renderParques();
-}
+// ---------- tablero ----------
+function isArm(r, c) { return (r >= 6 && r <= 8) || (c >= 6 && c <= 8); }
 
-function isCpuTurn() {
-    return modeSel && modeSel.value === "cpu" && P.turn === 1 && !P.over;
-}
+function buildBoard() {
+    if (!boardEl) return;
+    boardEl.innerHTML = "";
+    for (const k in cellEls) delete cellEls[k];
 
-function movePiece(player, idx) {
-    const d = P.dice;
-    if (d == null) return;
-    if (!validMoves(player, d).includes(idx)) return;
-
-    let pos = P.pieces[player][idx];
-    pos = (pos === -1) ? 0 : pos + d;
-    P.pieces[player][idx] = pos;
-
-    let msg = `${playerName(player)} movió ficha ${idx + 1} con ${d}.`;
-    // comer rivales (solo en pista, no en seguros)
-    const bi = boardIndex(player, pos);
-    if (bi !== null && !SAFE.has(bi)) {
-        const rival = 1 - player;
-        let eaten = 0;
-        P.pieces[rival] = P.pieces[rival].map((rp) => {
-            if (rp >= 0 && rp < TRACK_LEN && boardIndex(rival, rp) === bi) { eaten++; return -1; }
-            return rp;
-        });
-        if (eaten > 0) msg += ` 😋 ¡Comió ${eaten} ficha(s) rival! Repite turno.`;
-    }
-    const reachedGoal = pos === GOAL_POS;
-    if (reachedGoal) msg += " 🏁 ¡Ficha en la meta!";
-
-    // victoria
-    if (P.pieces[player].every((x) => x === GOAL_POS)) {
-        P.over = true;
-        P.dice = null;
-        renderParques();
-        const winner = playerName(player);
-        setMsg(`🏆 ¡${winner} ganó el juego!`);
-        setTimeout(() => alert(`🏆 ¡${winner} ganó el Parqués! 🎲`), 300);
-        return;
-    }
-
-    // repetir turno con 6, al comer o al llegar a meta; si no, pasa el turno
-    const extra = (d === 6) || reachedGoal || msg.includes("😋");
-    P.dice = null;
-    if (extra) {
-        P.canRoll = true;
-        // si es CPU, sigue tirando
-        renderParques();
-        setMsg(msg + (player === 0 || modeSel.value === "2p" ? " Tira de nuevo." : " La CPU tira de nuevo."));
-        if (isCpuTurnWith(player)) setTimeout(() => { if (P.canRoll && !P.over) rollDice(); }, 900);
-    } else {
-        P.turn = 1 - player;
-        P.canRoll = true;
-        renderParques();
-        setMsg(msg + ` Turno de ${playerName(P.turn)}.`);
-        if (isCpuTurn()) setTimeout(() => { if (P.canRoll && !P.over) rollDice(); }, 900);
-    }
-}
-
-function isCpuTurnWith(player) {
-    return modeSel && modeSel.value === "cpu" && player === 1 && !P.over;
-}
-
-function nextTurn() {
-    if (P.over) return;
-    P.turn = 1 - P.turn;
-    P.dice = null;
-    P.canRoll = true;
-    renderParques();
-    setMsg(`Turno de ${playerName(P.turn)}. ¡Lanza el dado!`);
-    if (isCpuTurn()) setTimeout(() => { if (P.canRoll && !P.over) rollDice(); }, 900);
-}
-
-function cpuMove(d) {
-    if (!P || P.over) return;
-    const me = 1;
-    const moves = validMoves(me, d);
-    if (moves.length === 0) { nextTurn(); return; }
-    // heurística: 1) comer 2) entrar a meta 3) salir de cárcel 4) ficha más adelantada
-    let best = moves[0], bestScore = -1e9;
-    for (const i of moves) {
-        const pos = P.pieces[me][i];
-        const dest = pos === -1 ? 0 : pos + d;
-        let s = dest; // prefiere avanzar
-        if (dest === GOAL_POS) s += 100;
-        if (pos === -1) s += 60;
-        const bi = boardIndex(me, dest);
-        if (bi !== null && !SAFE.has(bi)) {
-            const victims = P.pieces[0].filter((rp) => rp >= 0 && rp < TRACK_LEN && boardIndex(0, rp) === bi).length;
-            s += victims * 80;
-        }
-        if (s > bestScore) { bestScore = s; best = i; }
-    }
-    movePiece(me, best);
-}
-
-// ---------- render ----------
-function renderParques() {
-    if (!P) return;
-    // turno + marcador
-    if (turnEl) {
-        turnEl.textContent = P.over ? "🏁 Juego terminado" : `Turno: ${playerName(P.turn)}`;
-        turnEl.classList.toggle("turn-blue", P.turn === 1);
-    }
-    const gR = P.pieces[0].filter((x) => x === GOAL_POS).length;
-    const gB = P.pieces[1].filter((x) => x === GOAL_POS).length;
-    if (goalR) goalR.textContent = `${gR}/4`;
-    if (goalB) goalB.textContent = `${gB}/4`;
-    if (scoreR) scoreR.textContent = `${gR}/4`;
-    if (scoreB) scoreB.textContent = `${gB}/4`;
-    if (rollBtn) rollBtn.disabled = !P.canRoll || P.over;
-
-    // pista
-    trackEl.innerHTML = "";
-    const moves = (P.dice != null && !P.over) ? validMoves(P.turn, P.dice) : [];
-    const clickable = !isCpuTurn() && P.dice != null;
-
-    for (let c = 0; c < TRACK_LEN; c++) {
-        const cell = document.createElement("div");
-        cell.className = "pq-cell" + (SAFE.has(c) ? " pq-safe" : "");
-        if (c === START[0]) cell.classList.add("pq-start-r");
-        if (c === START[1]) cell.classList.add("pq-start-b");
-        const num = document.createElement("span");
-        num.className = "pq-num";
-        num.textContent = SAFE.has(c) ? "⭐" : (c + 1);
-        cell.appendChild(num);
-
-        // fichas de cada jugador en esta casilla
-        [0, 1].forEach((pl) => {
-            P.pieces[pl].forEach((pos, i) => {
-                if (pos >= 0 && pos < TRACK_LEN && boardIndex(pl, pos) === c) {
-                    const t = document.createElement("button");
-                    t.className = `pq-token p${pl}` + (clickable && pl === P.turn && moves.includes(i) ? " pq-can" : "");
-                    t.textContent = i + 1;
-                    t.title = `${playerName(pl)} ficha ${i + 1}`;
-                    if (clickable && pl === P.turn && moves.includes(i)) {
-                        t.addEventListener("click", (ev) => { ev.stopPropagation(); movePiece(pl, i); });
-                    }
-                    cell.appendChild(t);
-                }
-            });
-        });
-        trackEl.appendChild(cell);
-    }
-
-    // cárceles + recta final
-    renderHome(0, jailR, moves, clickable);
-    renderHome(1, jailB, moves, clickable);
-}
-
-function renderHome(pl, jailEl, moves, clickable) {
-    if (!jailEl) return;
-    jailEl.innerHTML = "";
-    P.pieces[pl].forEach((pos, i) => {
-        // en cárcel
-        if (pos === -1) {
-            const t = document.createElement("button");
-            t.className = `pq-token p${pl}` + (clickable && pl === P.turn && moves.includes(i) ? " pq-can pq-jail" : "");
-            t.textContent = i + 1;
-            t.title = `En la cárcel — sale con 6`;
-            if (clickable && pl === P.turn && moves.includes(i)) {
-                t.addEventListener("click", (ev) => { ev.stopPropagation(); movePiece(pl, i); });
-            }
-            jailEl.appendChild(t);
+    // cárceles de las 4 esquinas
+    COLORS.forEach((col, ci) => {
+        const [br, bc] = BASE_AREA[ci];
+        const active = P.players.some((p) => p.ci === ci);
+        const base = document.createElement("div");
+        base.className = "ld-base " + col.css + (active ? "" : " ld-off");
+        base.style.gridRow = `${br + 1} / span 6`;
+        base.style.gridColumn = `${bc + 1} / span 6`;
+        base.innerHTML = `<div class="ld-base-in"><div class="ld-team" id="ldTeam${ci}"></div><div class="ld-slots" id="ldSlots${ci}"></div></div>`;
+        boardEl.appendChild(base);
+        const teamBox = base.querySelector(`#ldTeam${ci}`);
+        if (teamBox) {
+            teamBox.appendChild(crestEl(ci));
+            const nm = document.createElement("span");
+            nm.textContent = col.team;
+            teamBox.appendChild(nm);
         }
     });
-    if (jailEl.children.length === 0) {
-        const s = document.createElement("span");
-        s.className = "pq-empty";
-        s.textContent = "Vacía 🎉";
-        jailEl.appendChild(s);
-    }
-    // recta final: mostrar progreso de fichas entre 32 y 35 como mini-barra
-    let home = jailEl.parentElement.querySelector(".pq-final");
-    if (!home) {
-        home = document.createElement("div");
-        home.className = "pq-final";
-        jailEl.parentElement.insertBefore(home, jailEl.nextSibling);
-    }
-    home.innerHTML = "";
-    P.pieces[pl].forEach((pos, i) => {
-        if (pos >= TRACK_LEN && pos < GOAL_POS) {
-            const t = document.createElement("button");
-            t.className = `pq-token p${pl} pq-final-t` + (clickable && pl === P.turn && moves.includes(i) ? " pq-can" : "");
-            t.textContent = `${i + 1}:${GOAL_POS - pos}`;
-            t.title = `Recta final — le faltan ${GOAL_POS - pos}`;
-            if (clickable && pl === P.turn && moves.includes(i)) {
-                t.addEventListener("click", (ev) => { ev.stopPropagation(); movePiece(pl, i); });
+
+    // centro (meta)
+    const center = document.createElement("div");
+    center.className = "ld-center";
+    center.style.gridRow = "7 / span 3";
+    center.style.gridColumn = "7 / span 3";
+    center.title = "Meta";
+    boardEl.appendChild(center);
+
+    // casillas de los brazos
+    const pathKeys = new Set(PATH.map(([r, c]) => key(r, c)));
+    const homeKey = {};
+    HOMES.forEach((cells, ci) => cells.forEach(([r, c]) => { homeKey[key(r, c)] = ci; }));
+    const startKey = {};
+    COLORS.forEach((col, ci) => {
+        const [r, c] = PATH[col.start];
+        startKey[key(r, c)] = ci;
+    });
+
+    for (let r = 0; r < 15; r++) {
+        for (let c = 0; c < 15; c++) {
+            if (!isArm(r, c)) continue;
+            if (r >= 6 && r <= 8 && c >= 6 && c <= 8) continue; // centro
+            const k = key(r, c);
+            const cell = document.createElement("div");
+            cell.className = "ld-cell";
+            cell.style.gridRow = `${r + 1}`;
+            cell.style.gridColumn = `${c + 1}`;
+            if (k in startKey) {
+                cell.classList.add(COLORS[startKey[k]].css, "ld-start");
+            } else if (k in homeKey) {
+                cell.classList.add(COLORS[homeKey[k]].css, "ld-home");
+            } else if (pathKeys.has(k)) {
+                const pi = PATH.findIndex(([pr, pc]) => pr === r && pc === c);
+                if (SAFE.has(pi)) { cell.classList.add("ld-star"); cell.textContent = "⭐"; }
+            } else {
+                cell.classList.add("ld-plain");
             }
-            home.appendChild(t);
+            boardEl.appendChild(cell);
+            cellEls[k] = cell;
+        }
+    }
+}
+
+function tokenBtn(pl, idx, many) {
+    const c = COLORS[pl.ci];
+    const b = document.createElement("button");
+    b.className = `ld-tok ${c.css}${many ? " many" : ""}`;
+    b.textContent = idx + 1;
+    b.title = `${c.team} ficha ${idx + 1}`;
+    return b;
+}
+
+function renderParques() {
+    if (!P || !boardEl) return;
+    const me = cur();
+    const moves = (P.dice != null && !P.over && me.human) ? validMoves(me, P.dice) : [];
+
+    if (turnEl) {
+        turnEl.textContent = P.over ? "🏁 Juego terminado" : `Turno: ${label(me)}`;
+    }
+    if (rollBtn) rollBtn.disabled = !P.canRoll || P.over || !me.human;
+    if (diceEl && P.dice == null && P.canRoll) diceEl.textContent = "-";
+
+    // marcador
+    if (scoresEl) {
+        scoresEl.innerHTML = "";
+        P.players.forEach((pl, ti) => {
+            const c = COLORS[pl.ci];
+            const goals = pl.pieces.filter((x) => x === GOAL).length;
+            const chip = document.createElement("span");
+            chip.className = "pq-chip" + (ti === P.turn && !P.over ? " active" : "");
+            chip.innerHTML = "";
+            chip.appendChild(crestEl(pl.ci));
+            const t = document.createElement("span");
+            t.textContent = `${c.team.split(" ").pop()} ${goals}/4${pl.human ? "" : " 🤖"}`;
+            chip.appendChild(t);
+            chip.title = c.team + (pl.human ? "" : " (CPU)");
+            scoresEl.appendChild(chip);
+        });
+    }
+
+    // limpiar fichas de las casillas
+    Object.values(cellEls).forEach((cell) => {
+        cell.querySelectorAll(".ld-tokens").forEach((t) => t.remove());
+    });
+
+    // agrupar fichas por casilla
+    const byCell = {};
+    P.players.forEach((pl, ti) => {
+        pl.pieces.forEach((pos, i) => {
+            const cell = cellOf(pl.ci, pos);
+            if (!cell || cell.center || pos < 0) return;
+            const k = key(cell.r, cell.c);
+            (byCell[k] = byCell[k] || []).push({ pl, ti, i });
+        });
+    });
+    Object.entries(byCell).forEach(([k, list]) => {
+        const cell = cellEls[k];
+        if (!cell) return;
+        const wrap = document.createElement("div");
+        wrap.className = "ld-tokens";
+        list.forEach(({ pl, ti, i }) => {
+            const t = tokenBtn(pl, i, list.length > 1);
+            if (ti === P.turn && moves.includes(i) && P.dice != null) {
+                t.classList.add("can");
+                t.addEventListener("click", (ev) => { ev.stopPropagation(); movePiece(ti, i); });
+            }
+            wrap.appendChild(t);
+        });
+        cell.appendChild(wrap);
+    });
+
+    // cárceles
+    COLORS.forEach((col, ci) => {
+        const box = $("ldSlots" + ci);
+        if (!box) return;
+        box.innerHTML = "";
+        const pl = P.players.find((p) => p.ci === ci);
+        for (let i = 0; i < 4; i++) {
+            const slot = document.createElement("div");
+            slot.className = "ld-slot";
+            const inJail = pl && pl.pieces[i] === -1;
+            if (inJail) {
+                const ti = P.players.indexOf(pl);
+                const t = tokenBtn(pl, i, false);
+                if (ti === P.turn && moves.includes(i) && P.dice != null) {
+                    t.classList.add("can");
+                    t.addEventListener("click", (ev) => { ev.stopPropagation(); movePiece(ti, i); });
+                }
+                slot.appendChild(t);
+            }
+            box.appendChild(slot);
         }
     });
 }
 
 // ---------- navegación ----------
-function showParques(el) {
-    ["loading-screen", "menu", "gameMenu", "memoryScreen", "rankingScreen"].forEach((id) => {
-        const s = document.getElementById(id);
-        if (s) { s.classList.add("hidden"); s.style.display = "none"; }
-    });
-    parquesScreen.classList.remove("hidden");
-    parquesScreen.style.display = "flex";
-    window.scrollTo(0, 0);
-}
-
 if (parquesGameCard) {
     parquesGameCard.addEventListener("click", () => {
-        showParques();
-        if (!P) parquesNewGame();
-        else renderParques();
+        ["loading-screen", "menu", "gameMenu", "memoryScreen", "rankingScreen"].forEach((id) => {
+            const s = $(id);
+            if (s) { s.classList.add("hidden"); s.style.display = "none"; }
+        });
+        parquesScreen.classList.remove("hidden");
+        parquesScreen.style.display = "flex";
+        window.scrollTo(0, 0);
+        showParquesIntro();
     });
 }
 if (rollBtn) rollBtn.addEventListener("click", rollDice);
-const restartBtn = document.getElementById("restartParques");
-if (restartBtn) restartBtn.addEventListener("click", () => { parquesNewGame(); });
-const backBtn = document.getElementById("backMenuParques");
+const restartBtn = $("restartParques");
+if (restartBtn) restartBtn.addEventListener("click", () => parquesNewGame());
+const backBtn = $("backMenuParques");
 if (backBtn) {
     backBtn.addEventListener("click", () => {
         parquesScreen.classList.add("hidden");
@@ -338,6 +472,81 @@ if (backBtn) {
         window.scrollTo(0, 0);
     });
 }
-if (modeSel) modeSel.addEventListener("change", () => { parquesNewGame(); });
+if (modeSel) modeSel.addEventListener("change", () => parquesNewGame());
+
+// ---------- portada estilo Champions (antes de jugar) ----------
+const CH_CRESTS = [
+    "img/escudos/real-madrid.png",
+    "img/escudos/barcelona.png",
+    "img/escudos/bayern.png",
+    "img/escudos/psg.png",
+    "img/escudos/man-city.png",
+    "img/escudos/liverpool.png",
+    "img/escudos/arsenal.png",
+    "img/escudos/inter.png",
+];
+
+function buildChTrack() {
+    const track = $("chTrack");
+    if (!track || track.children.length) return;
+    // perímetro 9x9 = 32 casillas: arriba(9) → derecha(7) → abajo(9) → izquierda(7)
+    const cells = [];
+    for (let c = 0; c < 9; c++) cells.push([0, c]);
+    for (let r = 1; r <= 7; r++) cells.push([r, 8]);
+    for (let c = 8; c >= 0; c--) cells.push([8, c]);
+    for (let r = 7; r >= 1; r--) cells.push([r, 0]);
+    let crest = 0;
+    cells.forEach(([r, c], idx) => {
+        const d = document.createElement("div");
+        d.className = "ch-cell";
+        d.style.gridRow = `${r + 1}`;
+        d.style.gridColumn = `${c + 1}`;
+        if (idx === 0) { d.classList.add("ch-corner"); d.innerHTML = "<span>⭐</span><b>INICIO</b>"; }
+        else if (idx === 16) { d.classList.add("ch-corner"); d.innerHTML = "<span>⭐</span><b>FINAL</b>"; }
+        else if (idx % 4 === 2) { d.classList.add("ch-star"); d.textContent = "⭐"; }
+        else {
+            const img = document.createElement("img");
+            img.src = CH_CRESTS[crest++ % CH_CRESTS.length];
+            img.alt = "Escudo";
+            img.draggable = false;
+            img.onerror = () => { d.textContent = "⭐"; };
+            d.appendChild(img);
+        }
+        track.appendChild(d);
+    });
+}
+
+function showParquesIntro() {
+    const intro = $("parquesIntro");
+    const wrap = $("parquesGameWrap");
+    if (intro) intro.classList.remove("hidden");
+    if (wrap) wrap.classList.add("hidden");
+    buildChTrack();
+    window.scrollTo(0, 0);
+}
+
+function startParquesMatch() {
+    const intro = $("parquesIntro");
+    const wrap = $("parquesGameWrap");
+    if (intro) intro.classList.add("hidden");
+    if (wrap) wrap.classList.remove("hidden");
+    parquesNewGame();
+    window.scrollTo(0, 0);
+}
+
+const playBtn = $("parquesPlay");
+if (playBtn) playBtn.addEventListener("click", startParquesMatch);
+const backIntroBtn = $("backMenuParquesIntro");
+if (backIntroBtn) {
+    backIntroBtn.addEventListener("click", () => {
+        parquesScreen.classList.add("hidden");
+        parquesScreen.style.display = "none";
+        if (gameMenuSection) {
+            gameMenuSection.classList.remove("hidden");
+            gameMenuSection.style.display = "flex";
+        }
+        window.scrollTo(0, 0);
+    });
+}
 
 parquesNewGame();

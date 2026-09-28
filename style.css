@@ -613,3 +613,353 @@ button:hover{ transform:scale(1.05); }
     .parques-home{ width:100%; }
     .parques-controls button{ width:100%; }
 }
+
+/* ------- Tablero clásico 15x15 ------- */
+
+.parques-scores{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+}
+
+.pq-chip{
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.25);
+    padding:8px 16px;
+    border-radius:20px;
+    font-weight:bold;
+    font-size:17px;
+}
+
+.pq-chip.active{ outline:3px solid #FFD700; background:rgba(255,215,0,.18); }
+
+#parquesBoardWrap{ display:flex; justify-content:center; margin-bottom:18px; }
+
+#parquesBoard{
+    display:grid;
+    grid-template-columns:repeat(15, 1fr);
+    grid-template-rows:repeat(15, 1fr);
+    width:min(94vw, 560px);
+    aspect-ratio:1 / 1;
+    background:#0d2f24;
+    border:8px solid #0d2f24;
+    border-radius:16px;
+    overflow:hidden;
+    box-shadow:0 12px 35px rgba(0,0,0,.55);
+}
+
+/* cárceles de las esquinas */
+.ld-base{ display:flex; justify-content:center; align-items:center; padding:8%; }
+.ld-base.ld-r{ background:#d62828; }
+.ld-base.ld-g{ background:#2a9d48; }
+.ld-base.ld-y{ background:#e9b400; }
+.ld-base.ld-b{ background:#1d6fd1; }
+.ld-base.ld-off{ background:#5a5a5a; filter:grayscale(.7); opacity:.75; }
+
+.ld-base-in{
+    width:88%;
+    height:88%;
+    background:#f5f1e6;
+    border-radius:16px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    padding:6%;
+    gap:4%;
+}
+
+.ld-team{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-weight:bold;
+    font-size:clamp(9px, 2.2vw, 15px);
+    color:#111;
+    max-width:100%;
+}
+
+.ld-team span:last-child{
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+}
+
+.ld-slots{
+    width:100%;
+    flex:1;
+    min-height:0;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:1fr 1fr;
+    place-items:center;
+    gap:4%;
+}
+
+.ld-crest{ display:inline-flex; }
+.ld-crest img{
+    width:30px;
+    height:30px;
+    object-fit:contain;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));
+}
+.pq-chip .ld-crest img{ width:26px; height:26px; }
+.pq-chip{ display:inline-flex; align-items:center; gap:8px; }
+
+/* insignia temporal si falta el archivo del escudo (p. ej. Milan) */
+.ld-crest-fb{
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    background:linear-gradient(90deg,#111 30%,#d00000 30% 70%,#111 70%);
+    border:2px solid #fff;
+    box-shadow:0 1px 4px rgba(0,0,0,.5);
+    color:#fff;
+    font-size:10px;
+    font-weight:bold;
+    display:inline-flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.ld-slot{
+    width:72%;
+    aspect-ratio:1 / 1;
+    border-radius:50%;
+    background:rgba(0,0,0,.08);
+    border:2px dashed rgba(0,0,0,.2);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+/* casillas de los brazos */
+.ld-cell{
+    background:#f5f1e6;
+    border:1px solid #b9b2a0;
+    position:relative;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:clamp(6px, 1.6vw, 13px);
+    min-width:0;
+    min-height:0;
+}
+
+.ld-cell.ld-plain{ background:#efe9d8; }
+.ld-cell.ld-star{ background:#fff7d6; }
+.ld-cell.ld-start.ld-r, .ld-cell.ld-home.ld-r{ background:#d62828; }
+.ld-cell.ld-start.ld-g, .ld-cell.ld-home.ld-g{ background:#2a9d48; }
+.ld-cell.ld-start.ld-y, .ld-cell.ld-home.ld-y{ background:#e9b400; }
+.ld-cell.ld-start.ld-b, .ld-cell.ld-home.ld-b{ background:#1d6fd1; }
+
+/* centro: 4 triángulos de colores */
+.ld-center{
+    background:conic-gradient(from 45deg,
+        #e9b400 0deg 90deg,
+        #1d6fd1 90deg 180deg,
+        #d62828 180deg 270deg,
+        #2a9d48 270deg 360deg);
+    border:2px solid #0d2f24;
+}
+
+/* fichas */
+.ld-tokens{
+    position:absolute;
+    inset:2%;
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-items:center;
+    gap:2%;
+    pointer-events:none;
+}
+
+.ld-tok{
+    width:74%;
+    aspect-ratio:1 / 1;
+    border-radius:50%;
+    border:2px solid #fff;
+    box-shadow:0 2px 5px rgba(0,0,0,.5), inset -2px -3px 0 rgba(0,0,0,.25);
+    color:#fff;
+    font-weight:bold;
+    font-size:clamp(7px, 1.8vw, 14px);
+    cursor:default;
+    margin:0;
+    padding:0;
+    pointer-events:auto;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+}
+
+.ld-tok.many{ width:46%; font-size:clamp(6px, 1.4vw, 11px); }
+.ld-slot .ld-tok{ width:96%; height:96%; font-size:clamp(10px, 2.4vw, 18px); }
+
+.ld-tok.ld-r{ background:radial-gradient(circle at 32% 30%, #ff7b7b, #b3122e); }
+.ld-tok.ld-g{ background:radial-gradient(circle at 32% 30%, #6fe39a, #166b32); }
+.ld-tok.ld-y{ background:radial-gradient(circle at 32% 30%, #ffe27a, #b57e00); }
+.ld-tok.ld-b{ background:radial-gradient(circle at 32% 30%, #7ec8ff, #0d47a1); }
+
+.ld-tok.can{
+    cursor:pointer;
+    border-color:#FFD700;
+    animation:pqGlow 1s infinite alternate;
+}
+
+/* ========================= */
+/*  PORTADA CHAMPIONS PARQUÉS */
+/* ========================= */
+
+#parquesIntro{ margin-bottom:20px; }
+
+.ch-board{
+    position:relative;
+    width:min(94vw, 600px);
+    aspect-ratio:1 / 1;
+    margin:0 auto;
+    border-radius:18px;
+    padding:14px;
+    background:
+        radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent),
+        radial-gradient(1px 1px at 32% 8%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 68% 14%, #fff, transparent),
+        radial-gradient(1px 1px at 85% 30%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 8% 65%, #fff, transparent),
+        radial-gradient(1px 1px at 92% 72%, #fff, transparent),
+        radial-gradient(1.5px 1.5px at 45% 92%, #fff, transparent),
+        radial-gradient(1px 1px at 78% 88%, #fff, transparent),
+        linear-gradient(135deg, #12277a, #060b33 70%);
+    border:3px solid rgba(255,255,255,.35);
+    box-shadow:0 12px 40px rgba(0,0,0,.6), 0 0 35px rgba(40,80,255,.35);
+}
+
+.ch-track{
+    position:absolute;
+    inset:14px;
+    display:grid;
+    grid-template-columns:repeat(9, 1fr);
+    grid-template-rows:repeat(9, 1fr);
+    gap:4px;
+}
+
+.ch-cell{
+    background:linear-gradient(160deg, #1b3fa0, #0a1748);
+    border:1.5px solid rgba(255,255,255,.55);
+    border-radius:8px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:clamp(8px, 2vw, 15px);
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+}
+
+.ch-cell img{
+    width:78%;
+    height:78%;
+    object-fit:contain;
+    pointer-events:none;
+    filter:drop-shadow(0 1px 2px rgba(0,0,0,.6));
+}
+
+.ch-cell.ch-star{ background:linear-gradient(160deg, #243b8f, #0a1748); }
+.ch-cell.ch-corner{
+    background:linear-gradient(160deg, #2c4fd6, #101f5e);
+    flex-direction:column;
+    gap:0;
+    color:#fff;
+    font-weight:bold;
+    line-height:1.1;
+}
+
+.ch-cell.ch-corner b{ font-size:clamp(6px, 1.6vw, 12px); letter-spacing:.5px; }
+
+.ch-center{
+    position:absolute;
+    inset:17%;
+    border-radius:16px;
+    background:
+        radial-gradient(ellipse at 50% 120%, rgba(30,90,255,.55), transparent 60%),
+        radial-gradient(ellipse at 50% -20%, rgba(150,180,255,.35), transparent 55%),
+        linear-gradient(180deg, rgba(8,18,70,.96), rgba(4,8,32,.96));
+    border:2px solid rgba(255,255,255,.5);
+    box-shadow:inset 0 0 40px rgba(60,110,255,.35);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    text-align:center;
+    padding:4%;
+    gap:1.5%;
+    overflow:auto;
+}
+
+.ch-ball{
+    width:clamp(44px, 12%, 84px);
+    aspect-ratio:1 / 1;
+    border-radius:50%;
+    background:radial-gradient(circle at 35% 32%, #ffffff, #a9bdff 70%, #5f7dff);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    font-size:clamp(20px, 5vw, 38px);
+    box-shadow:0 0 22px rgba(160,190,255,.9);
+}
+
+.ch-center h2{
+    color:#fff;
+    font-size:clamp(16px, 4.4vw, 32px);
+    letter-spacing:2px;
+    line-height:1.15;
+    text-shadow:0 2px 12px rgba(120,160,255,.8);
+    margin:0;
+}
+
+.ch-sub{
+    color:#cdd8ff;
+    font-size:clamp(9px, 2.2vw, 14px);
+    margin:0;
+    max-width:90%;
+}
+
+.ch-pieces{ font-size:clamp(13px, 3.4vw, 22px); }
+
+.ch-label{
+    color:#FFD700;
+    font-size:clamp(9px, 2.2vw, 13px);
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:1px;
+}
+
+.ch-center select{
+    width:86%;
+    padding:10px;
+    border:none;
+    border-radius:10px;
+    font-size:clamp(11px, 2.6vw, 15px);
+    outline:none;
+    background:#fff;
+    color:#111;
+}
+
+.ch-center #parquesPlay{
+    width:86%;
+    margin-top:2%;
+    padding:12px;
+    font-size:clamp(13px, 3vw, 18px);
+    background:linear-gradient(90deg,#FFD700,#FF8C00);
+    color:#111;
+}
+
+.ch-back{
+    width:86%;
+    padding:9px;
+    font-size:clamp(10px, 2.4vw, 14px);
+    background:rgba(255,255,255,.15);
+    border:1px solid rgba(255,255,255,.4);
+}
