@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Football Challenge</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Pantalla de carga -->
+    <section id="loading-screen">
+        <div class="loader">
+            <div class="ball">⚽</div>
+            <h1>Football Challenge</h1>
+            <p id="loading-text">Inicializando...</p>
+            <div class="progress">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <span id="percent">0%</span>
+        </div>
+    </section>
+
+    <!-- Menú principal -->
+    <section id="menu" class="hidden">
+        <div class="card">
+            <h1>Football Challenge</h1>
+            <p>El reto definitivo para los amantes del fútbol.</p>
+            <input type="text" id="playerName" placeholder="Escribe tu nombre" maxlength="20">
+            <button id="startBtn">COMENZAR</button>
+            <p id="bestRecords" class="records"></p>
+        </div>
+    </section>
+
+    <!-- Menú de juegos -->
+    <section id="gameMenu" class="hidden">
+        <div class="game-container">
+            <h1>Football Challenge</h1>
+            <h2 id="welcomePlayer"></h2>
+            <p>Elige un desafío</p>
+            <div class="games">
+                <div class="game-card" id="memoryGame">
+                    <img src="img/buscarpareja.jpeg" alt="Buscar la pareja">
+                    <h3>🧠 Buscar la pareja</h3>
+                    <p>Encuentra todos los escudos iguales.</p>
+                </div>
+                <div class="game-card" id="parquesGame">
+                    <div class="game-emoji">🎲</div>
+                    <h3>Parqués</h3>
+                    <p>Saca tus 4 fichas de la cárcel y llega primero a la meta.</p>
+                </div>
+            </div>
+            <button id="showRanking">🏆 Ver ranking</button>
+            <button id="changePlayer">Cambiar jugador</button>
+        </div>
+    </section>
+
+    <!-- Pantalla Buscar la pareja -->
+    <section id="memoryScreen" class="hidden">
+        <div class="memory-container">
+            <h1>🧠 Buscar la pareja</h1>
+            <div class="info">
+                <span id="playerMemory"></span>
+                <span>⏱ Tiempo: <span id="memoryTime">00:00</span></span>
+                <span>🎯 Movimientos: <span id="memoryMoves">0</span></span>
+                <span>✅ Parejas: <span id="memoryPairs">0/8</span></span>
+            </div>
+            <div id="board"></div>
+            <div class="btn-row">
+                <button id="restartMemory">🔄 Reiniciar</button>
+                <button id="backMenu">← Volver al menú</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pantalla Parqués -->
+    <section id="parquesScreen" class="hidden">
+        <div class="parques-container">
+            <h1>🎲 Parqués</h1>
+            <div class="info">
+                <span id="parquesTurn">🔴 Turno: Rojo</span>
+                <span>🎲 Dado: <span id="parquesDice">-</span></span>
+                <span>🔴 <span id="parquesScoreR">0/4</span> &nbsp;vs&nbsp; 🔵 <span id="parquesScoreB">0/4</span></span>
+            </div>
+            <div class="parques-controls">
+                <select id="parquesMode">
+                    <option value="cpu">🧍 Tú (rojo) vs 🤖 CPU (azul)</option>
+                    <option value="2p">🧍🧍 2 jugadores (local)</option>
+                </select>
+                <button id="parquesRoll">🎲 Lanzar dado</button>
+            </div>
+            <p id="parquesMsg" class="parques-msg">Pulsa "Lanzar dado" para empezar. Sales de la cárcel con 6.</p>
+            <div class="parques-layout">
+                <div class="parques-home" id="parquesHomeR">
+                    <h3>🔴 Cárcel roja</h3>
+                    <div class="parques-jail" id="parquesJailR"></div>
+                    <div class="parques-goal" id="parquesGoalR">🏁 Meta: <span>0/4</span></div>
+                </div>
+                <div id="parquesTrack"></div>
+                <div class="parques-home" id="parquesHomeB">
+                    <h3>🔵 Cárcel azul</h3>
+                    <div class="parques-jail" id="parquesJailB"></div>
+                    <div class="parques-goal" id="parquesGoalB">🏁 Meta: <span>0/4</span></div>
+                </div>
+            </div>
+            <p class="parques-rules">📜 Reglas simples: sales con 6 · si sacas 6 repites turno · cae sobre un rival (casilla blanca) y lo devuelves a la cárcel · las ⭐ son seguros · necesitas número exacto para entrar a la meta.</p>
+            <div class="btn-row">
+                <button id="restartParques">🔄 Reiniciar</button>
+                <button id="backMenuParques">← Volver al menú</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pantalla Ranking global -->
+    <section id="rankingScreen" class="hidden">
+        <div class="ranking-container">
+            <h1>🏆 Ranking global</h1>
+            <p class="ranking-hint">Tabla de posiciones por juego, guardada en Convex.</p>
+            <div id="ranking-root"><p class="ranking-loading">Cargando ranking...</p></div>
+            <div class="btn-row">
+                <button id="backMenuRanking">← Volver al menú</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Modal victoria / resultado -->
+    <div id="modal" class="hidden">
+        <div class="modal-card">
+            <h2 id="modalTitle">🏆 ¡Increíble!</h2>
+            <p id="modalText"></p>
+            <p id="modalRecord" class="records"></p>
+            <button id="modalBtn">Seguir jugando</button>
+        </div>
+    </div>
+
+<script type="module" src="script.js"></script>
+<script type="module" src="parques.js"></script>
+<script type="module" src="/src/main.jsx"></script>
+<script>
+  // Si React no monta el ranking (p. ej. abriendo index.html sin Vite),
+  // mostrar un aviso en vez de dejar "Cargando..." para siempre.
+  setTimeout(function () {
+    var root = document.getElementById("ranking-root");
+    if (root && root.textContent.indexOf("Cargando ranking") !== -1) {
+      root.innerHTML = "<p class='ranking-loading'>⚠️ El ranking necesita abrir la app con <code>npm run dev</code>. El juego funciona igual sin ranking.</p>";
+    }
+  }, 8000);
+</script>
+</body>
+</html>
