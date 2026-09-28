@@ -105,21 +105,46 @@ async function saveParquesWin({ team, turns, timeSec, mode, human }) {
 }
 
 // ---------- estado ----------
-function activeColors() {
+// Enfrentamientos de 2: siempre en diagonal (0 vs 2) para equilibrar el recorrido.
+// El equipo se desacopla del color: Madrid (rojo) vs Barça (amarillo en diagonal).
+function getRoster() {
     const m = modeSel ? modeSel.value : "cpu4";
-    if (m === "cpu4") return [0, 1, 2, 3];
-    return [0, 3]; // rojo vs azul
+    const friendName1 = ($("parquesName1")?.value || "").trim().slice(0, 20);
+    const friendName2 = ($("parquesName2")?.value || "").trim().slice(0, 20);
+    if (m === "cpu4") {
+        return [0, 1, 2, 3].map((ci) => ({
+            ci,
+            human: ci === 0,
+            team: COLORS[ci].team,
+            img: COLORS[ci].img,
+            emoji: COLORS[ci].emoji,
+        }));
+    }
+    if (m === "friends4") {
+        const names = [friendName1, friendName2];
+        return [0, 1, 2, 3].map((ci, i) => ({
+            ci,
+            human: true,
+            team: names[i] || COLORS[ci].team,
+            img: COLORS[ci].img,
+            emoji: COLORS[ci].emoji,
+        }));
+    }
+    // cpu | 2p | friends : diagonal rojo(0) vs amarillo(2), Madrid vs Barça
+    const human2 = m === "2p" || m === "friends";
+    return [
+        { ci: 0, human: true, team: friendName1 || "Real Madrid", img: "img/escudos/real-madrid.png", emoji: "🔴" },
+        { ci: 2, human: human2, team: friendName2 || "Barcelona", img: "img/escudos/barcelona.png", emoji: "🟡" },
+    ];
 }
-function isHuman(pi) {
-    const m = modeSel ? modeSel.value : "cpu4";
-    if (m === "2p") return true;
-    return pi === 0;
+function activeColors() {
+    return getRoster().map((r) => r.ci);
 }
 
 function parquesNewGame() {
-    const act = activeColors();
+    const roster = getRoster();
     P = {
-        players: act.map((ci) => ({ ci, pieces: [-1, -1, -1, -1], human: isHuman(ci) })),
+        players: roster.map((r) => ({ ci: r.ci, pieces: [-1, -1, -1, -1], human: r.human, team: r.team, img: r.img, emoji: r.emoji })),
         turn: 0, // índice dentro de players
         dice: null,
         canRoll: true,
@@ -135,25 +160,29 @@ function parquesNewGame() {
 }
 
 function cur() { return P.players[P.turn]; }
-function label(pl) { const c = COLORS[pl.ci]; return `${c.emoji} ${c.team}`; }
+function teamOf(pl) { return pl.team || COLORS[pl.ci].team; }
+function emojiOf(pl) { return pl.emoji || COLORS[pl.ci].emoji; }
+function label(pl) { return `${emojiOf(pl)} ${teamOf(pl)}`; }
 function setMsg(t) { if (msgEl) msgEl.textContent = t; }
 function key(r, c) { return r + "_" + c; }
 
 // Escudo del equipo (con insignia temporal si falta el archivo, p. ej. Milan)
-function crestEl(ci) {
+function crestEl(ci, override) {
     const c = COLORS[ci];
+    const src = (override && override.img) || c.img;
+    const name = (override && override.team) || c.team;
     const s = document.createElement("span");
     s.className = "ld-crest";
     const img = document.createElement("img");
-    img.src = c.img;
-    img.alt = c.team;
+    img.src = src;
+    img.alt = name;
     img.draggable = false;
     img.addEventListener("error", () => {
         s.innerHTML = "";
         const fb = document.createElement("span");
         fb.className = "ld-crest-fb";
-        fb.textContent = c.team.slice(0, 3).toUpperCase();
-        fb.title = c.team;
+        fb.textContent = name.slice(0, 3).toUpperCase();
+        fb.title = name;
         s.appendChild(fb);
     });
     s.appendChild(img);
@@ -261,8 +290,7 @@ function movePiece(turnIdx, idx) {
     pos = pos === -1 ? 0 : pos + d;
     pl.pieces[idx] = pos;
 
-    const c = COLORS[pl.ci];
-    let msg = `${c.emoji} ${c.team} movió su ficha ${idx + 1} (dado ${d}).`;
+    let msg = `${label(pl)} movió su ficha ${idx + 1} (dado ${d}).`;
     let captured = false;
 
     if (pos <= 50) {
@@ -285,16 +313,16 @@ function movePiece(turnIdx, idx) {
     if (pl.pieces.every((x) => x === GOAL)) {
         P.over = true; P.dice = null; P.canRoll = false;
         renderParques();
-        setMsg(`🏆 ¡${c.emoji} ${c.team} ganó el Parqués!`);
+        setMsg(`🏆 ¡${label(pl)} ganó el Parqués!`);
         beep(880);
         saveParquesWin({
-            team: c.team,
+            team: teamOf(pl),
             turns: P.rolls || 0,
             timeSec: Math.floor((Date.now() - (P.startedAt || Date.now())) / 1000),
             mode: modeSel ? modeSel.value : "cpu4",
             human: !!pl.human,
         });
-        setTimeout(() => alert(`🏆 ¡${c.team} ganó el Parqués! 🎲`), 350);
+        setTimeout(() => alert(`🏆 ¡${teamOf(pl)} ganó el Parqués! 🎲`), 350);
         return;
     }
 
@@ -363,9 +391,10 @@ function buildBoard() {
         boardEl.appendChild(base);
         const teamBox = base.querySelector(`#ldTeam${ci}`);
         if (teamBox) {
-            teamBox.appendChild(crestEl(ci));
+            const pl = P.players.find((p) => p.ci === ci);
+            teamBox.appendChild(crestEl(ci, pl));
             const nm = document.createElement("span");
-            nm.textContent = col.team;
+            nm.textContent = pl ? teamOf(pl) : col.team;
             teamBox.appendChild(nm);
         }
     });
@@ -418,7 +447,7 @@ function tokenBtn(pl, idx, many) {
     const b = document.createElement("button");
     b.className = `ld-tok ${c.css}${many ? " many" : ""}`;
     b.textContent = idx + 1;
-    b.title = `${c.team} ficha ${idx + 1}`;
+    b.title = `${teamOf(pl)} ficha ${idx + 1}`;
     return b;
 }
 
@@ -437,16 +466,15 @@ function renderParques() {
     if (scoresEl) {
         scoresEl.innerHTML = "";
         P.players.forEach((pl, ti) => {
-            const c = COLORS[pl.ci];
             const goals = pl.pieces.filter((x) => x === GOAL).length;
             const chip = document.createElement("span");
             chip.className = "pq-chip" + (ti === P.turn && !P.over ? " active" : "");
             chip.innerHTML = "";
-            chip.appendChild(crestEl(pl.ci));
+            chip.appendChild(crestEl(pl.ci, pl));
             const t = document.createElement("span");
-            t.textContent = `${c.team.split(" ").pop()} ${goals}/4${pl.human ? "" : " 🤖"}`;
+            t.textContent = `${teamOf(pl).split(" ").pop()} ${goals}/4${pl.human ? "" : " 🤖"}`;
             chip.appendChild(t);
-            chip.title = c.team + (pl.human ? "" : " (CPU)");
+            chip.title = teamOf(pl) + (pl.human ? "" : " (CPU)");
             scoresEl.appendChild(chip);
         });
     }
@@ -534,7 +562,20 @@ if (backBtn) {
         window.scrollTo(0, 0);
     });
 }
-if (modeSel) modeSel.addEventListener("change", () => parquesNewGame());
+function toggleParquesNames() {
+    const names = $("parquesNames");
+    const m = modeSel ? modeSel.value : "cpu";
+    if (!names) return;
+    // Nombres solo para modos de amigos / 2 jugadores
+    const show = m === "2p" || m === "friends" || m === "friends4";
+    names.style.display = show ? "flex" : "none";
+}
+if (modeSel) modeSel.addEventListener("change", () => { toggleParquesNames(); parquesNewGame(); });
+["parquesName1", "parquesName2"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("change", () => parquesNewGame());
+});
+toggleParquesNames();
 
 // ---------- portada estilo Champions (antes de jugar) ----------
 const CH_CRESTS = [

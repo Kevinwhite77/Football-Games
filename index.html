@@ -89,10 +89,16 @@
                         <div class="ch-pieces">🔴 🟢 🟡 🔵 &nbsp;🎲🎲</div>
                         <label class="ch-label" for="parquesMode">Modo de juego</label>
                         <select id="parquesMode">
+                            <option value="cpu">🧍 Tú (Real Madrid 🔴) vs 🤖 CPU (Barcelona 🟡) — Diagonal</option>
+                            <option value="2p">🧍🧍 2 jugadores en este dispositivo — Diagonal</option>
+                            <option value="friends">👥 Con un amigo (poned vuestros nombres) — Diagonal</option>
+                            <option value="friends4">👥👥 Con amigos: 4 jugadores en este dispositivo</option>
                             <option value="cpu4">🧍 Tú (Real Madrid) vs 🤖🤖🤖 3 CPU</option>
-                            <option value="cpu">🧍 Tú (Real Madrid) vs 🤖 CPU (Barcelona)</option>
-                            <option value="2p">🧍🧍 2 jugadores: Real Madrid vs Barcelona</option>
                         </select>
+                        <div id="parquesNames" style="width:86%;display:flex;gap:8px;margin-top:8px;">
+                            <input type="text" id="parquesName1" placeholder="Jugador 1 (Madrid)" maxlength="20" style="flex:1;padding:10px;border-radius:10px;border:none;">
+                            <input type="text" id="parquesName2" placeholder="Jugador 2 (Barça)" maxlength="20" style="flex:1;padding:10px;border-radius:10px;border:none;">
+                        </div>
                         <button id="parquesPlay">▶ JUGAR</button>
                         <button id="backMenuParquesIntro" class="ch-back">← Volver al menú</button>
                     </div>
